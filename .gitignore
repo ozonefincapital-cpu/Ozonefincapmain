@@ -1,0 +1,22 @@
+# Archives — do not deploy
+TCG_index.html
+V0_index.html
+V1_index.html
+index - Step Form.html
+TCG FINX Favicon.png
+TCG FINX Logo.png
+screencapture-*.pdf
+hero.png
+testimonials.png
+
+# Research / content dumps
+Perplexity Research Landing page.txt
+website_content.txt
+multilingual_prompt.txt
+gujarati_content.txt
+hindi_content.txt
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

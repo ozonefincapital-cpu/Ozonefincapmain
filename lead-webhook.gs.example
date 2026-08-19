@@ -1,0 +1,112 @@
+/**
+ * Ozone Capital Finance — Google Apps Script lead webhook (example)
+ *
+ * Setup:
+ * 1. Create a Google Sheet with a tab named "Leads".
+ * 2. Extensions → Apps Script. Paste this file (without the .example suffix).
+ * 3. Deploy → New deployment → Web app.
+ *    - Execute as: Me
+ *    - Who has access: Anyone
+ * 4. Copy the web app URL into CONFIG.WEBHOOK_URL in index.html.
+ *
+ * Verified success path:
+ * This script returns JSON { ok: true }. The landing page only shows
+ * "Thank you. Your funding enquiry has been received." when that JSON
+ * is readable. Google Apps Script often omits CORS headers, so the
+ * browser may still show the neutral fallback even when the Sheet row
+ * was written. That is expected.
+ *
+ * Optional Telegram notify (SERVER SIDE ONLY):
+ * Store token and chat id in Project Settings → Script properties:
+ *   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+ * Never put those values in frontend HTML/JS.
+ */
+
+function doPost(e) {
+  try {
+    var data = {};
+    if (e.postData && e.postData.contents) {
+      data = JSON.parse(e.postData.contents);
+    }
+
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Leads');
+    if (!sheet) {
+      sheet = ss.insertSheet('Leads');
+    }
+
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow([
+        'Timestamp',
+        'Full Name',
+        'Mobile',
+        'City',
+        'Loan Type',
+        'Amount Band',
+        'Applicant Type',
+        'Funding Purpose',
+        'Notes',
+        'Consent',
+        'Source'
+      ]);
+    }
+
+    sheet.appendRow([
+      data.timestamp || new Date().toISOString(),
+      data.fullName || '',
+      data.mobile || '',
+      data.city || 'Ahmedabad',
+      data.loanType || '',
+      data.amountBand || '',
+      data.applicantType || '',
+      data.fundingPurpose || '',
+      data.notes || '',
+      data.consent ? 'Yes' : '',
+      data.source || 'ozone-landing'
+    ]);
+
+    notifyTelegram_(data);
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet() {
+  return ContentService
+    .createTextOutput(JSON.stringify({ ok: true, service: 'ozone-leads' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function notifyTelegram_(data) {
+  var props = PropertiesService.getScriptProperties();
+  var token = props.getProperty('TELEGRAM_BOT_TOKEN');
+  var chatId = props.getProperty('TELEGRAM_CHAT_ID');
+  if (!token || !chatId) return;
+
+  var text = [
+    'New Ozone funding enquiry',
+    'Name: ' + (data.fullName || ''),
+    'Mobile: ' + (data.mobile || ''),
+    'City: ' + (data.city || 'Ahmedabad'),
+    'Requirement: ' + (data.loanType || ''),
+    'Amount: ' + (data.amountBand || ''),
+    'Purpose: ' + (data.fundingPurpose || ''),
+    'Applicant: ' + (data.applicantType || '')
+  ].join('\n');
+
+  UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({
+      chat_id: chatId,
+      text: text
+    }),
+    muteHttpExceptions: true
+  });
+}
